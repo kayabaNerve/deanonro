@@ -304,6 +304,7 @@ dependencies = [
  "cbor",
  "chacha20",
  "hex",
+ "num-traits",
  "reqwest",
  "tiny-keccak",
  "tokio",

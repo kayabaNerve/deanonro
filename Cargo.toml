@@ -8,10 +8,18 @@ hex = "0.4"
 tokio = { version = "1", features = ["full"] }
 reqwest = "0.12.4"
 
+# bn254
+num-traits = "0.2"
 ark-serialize = "0.4"
 ark-bn254 = "0.4"
 ark-ec = "0.4"
+
+# Used to convert addresses to their keys
+bech32 = "0.11"
+
+# Used to derived secrets
 tiny-keccak = { version = "2", features = ["keccak"] }
 chacha20 = "0.9"
+
+# Used to decrypt the payload
 cbor = "0.4"
-bech32 = "0.11"

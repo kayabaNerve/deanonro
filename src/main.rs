@@ -2,6 +2,8 @@
 
 use std::io;
 
+use num_traits::identities::Zero;
+
 use ark_bn254::*;
 use ark_ec::*;
 use ark_serialize::*;
@@ -133,6 +135,7 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     res
 }
 
+// These do not bother supporting encoding the identity pointing
 fn decode_point(mut point: Vec<u8>) -> G1Projective {
     let flags = point.pop().unwrap();
     // BE -> LE
@@ -289,9 +292,7 @@ async fn main() {
         hex::decode("02eacfbf92b94015c9b0b3d901dae37ec68f74dea7e4484c76d505aade4ad7c001").unwrap(),
     );
 
-    // This is a test TX ID with a known amount
-    // If we didn't know the amount, we'd have to brute force the amount, with whatever decrypts
-    // being the correct amount
+    // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
     let mut tx_ids: Vec<&str> =
         vec!["88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0"];
     for tx_id in tx_ids {
@@ -300,22 +301,25 @@ async fn main() {
         };
         for (keys, transfer) in tx {
             assert_eq!(keys.len(), transfer.statement.commitments.len());
-            // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
-            for (key, commitment) in keys
-                .into_iter()
-                .zip(transfer.statement.commitments.into_iter())
-            {
-                // "0.00002"
-                // Dero has 5 decimals, so this is 2 atomic unit
-                if decrypt(
-                    decode_point(commitment.to_vec()) - (amount_generator + amount_generator),
-                    key,
-                    transfer.payload,
-                )
-                .is_some()
-                {
-                    dbg!(tx_id);
+            let mut commitments = vec![];
+            for commitment in &transfer.statement.commitments {
+                commitments.push(decode_point(commitment.to_vec()));
+            }
+
+            let mut amount_u64 = 0;
+            let mut amount = G1Projective::zero();
+
+            'transfer: loop {
+                // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
+                for (key, commitment) in keys.iter().zip(&commitments) {
+                    if decrypt(commitment - amount, *key, transfer.payload).is_some() {
+                        dbg!(tx_id);
+                        dbg!(amount_u64);
+                        break 'transfer;
+                    }
                 }
+                amount_u64 += 1;
+                amount += amount_generator;
             }
         }
     }
