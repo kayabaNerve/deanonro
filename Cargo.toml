@@ -1,0 +1,17 @@
+[package]
+name = "deanonro"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hex = "0.4"
+tokio = { version = "1", features = ["full"] }
+reqwest = "0.12.4"
+
+ark-serialize = "0.4"
+ark-bn254 = "0.4"
+ark-ec = "0.4"
+tiny-keccak = { version = "2", features = ["keccak"] }
+chacha20 = "0.9"
+cbor = "0.4"
+bech32 = "0.11"
