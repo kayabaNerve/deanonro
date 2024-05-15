@@ -135,7 +135,8 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     res
 }
 
-// These do not bother supporting encoding the identity pointing
+// These functions map from the bn254 encoding used by Ethereum to the one used by ark-bn254
+// These do not bother supporting encoding the identity point
 fn decode_point(mut point: Vec<u8>) -> G1Projective {
     let flags = point.pop().unwrap();
     // BE -> LE
@@ -172,7 +173,7 @@ fn decrypt(
     shared_key: G1Projective,
     output_key: [u8; 33],
     mut payload: [u8; PAYLOAD_LIMIT],
-) -> Option<()> {
+) -> Option<u8> {
     let mut shared_key_bytes = encode_point(shared_key);
     let mut shared_key: [u8; 32] = keccak256(&shared_key_bytes);
 
@@ -209,9 +210,8 @@ fn decrypt(
     }
     dbg!(cbor.unwrap());
 
-    // The first byte is the sender index in the ring
-
-    Some(())
+    // The first byte is the sender index in the ring since it was 'fixed' six months ago
+    Some(payload[0])
 }
 
 // Scrape a TX from the explorer
@@ -292,9 +292,14 @@ async fn main() {
         hex::decode("02eacfbf92b94015c9b0b3d901dae37ec68f74dea7e4484c76d505aade4ad7c001").unwrap(),
     );
 
-    // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
-    let mut tx_ids: Vec<&str> =
-        vec!["88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0"];
+    let mut tx_ids: Vec<&str> = vec![
+        // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
+        "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0",
+        // This is a random TX from a few days ago
+        "342cd00ef163b661a5c68790e59efcb7cd76d41dc72a013c596973af06de03b5",
+        // Another random TX
+        "51271a66bfac64c7eff73e66cc81e3abbd74ffe396145df090275b771e668ba0",
+    ];
     for tx_id in tx_ids {
         let Some(tx) = fetch_tx_with_retry(tx_id).await else {
             continue;
@@ -312,9 +317,18 @@ async fn main() {
             'transfer: loop {
                 // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
                 for (key, commitment) in keys.iter().zip(&commitments) {
-                    if decrypt(commitment - amount, *key, transfer.payload).is_some() {
+                    if let Some(sender) = decrypt(commitment - amount, *key, transfer.payload) {
                         dbg!(tx_id);
-                        dbg!(amount_u64);
+                        let sender = hex::encode(keys[usize::from(sender)].as_slice());
+                        let recipient = hex::encode(key);
+                        if sender == recipient {
+                            println!("TX encoded recipient as sender and is accordingly on old wallet software");
+                        } else {
+                            dbg!(sender);
+                        }
+                        dbg!(recipient);
+                        dbg!(amount_u64); // Amount
+                        println!("---");
                         break 'transfer;
                     }
                 }
