@@ -1,0 +1,22 @@
+I have made a PoC revealing the receivers, amounts, and messages of Dero
+transactions. As of the last six months, it also deanonymizes senders, due to
+the sender being included in the `Payload_RPC` field (it originally wasn't due
+to a bug). It works for any TX which can have its message decryptions verified.
+Since Dero 0-pads its encryptions, that trivially means any TX which doesn't
+use its last 16 bytes (verification being checking the last 16 bytes are zero).
+For TXs which do use longer messages, one can check the message is a valid CBOR
+(as Dero encodes Payload_RPC fields as CBOR, and a long, valid CBOR is
+statistically unlikely for an invalid decryption key).
+
+One can try decryptions, brute forcing amounts, until it finds a successful
+decryption. That reveals the message, the receiver (as the decryption is bound
+to a receiver), and the amount (whichever brute forced amount worked). The
+sender is the first byte in Payload_RPC, except for TXs older than 6 months
+ago. Due a bug patched 6 months ago, the first byte was accidentally the
+receiver (preserving sender privacy).
+
+The expensive part is brute forcing amounts. 100 DERO means 100.00000 means
+10,000,000 attempts *per potential receiver, half the length of the ring as
+represented by Dero (as it's in reality two rings, one sender and one
+receiver). For 16 potential senders/receivers, this is 80m decryption attempts
+per transfer (smaller transfers being much faster). This is feasible however.
