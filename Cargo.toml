@@ -22,4 +22,4 @@ tiny-keccak = { version = "2", features = ["keccak"] }
 chacha20 = "0.9"
 
 # Used to decrypt the payload
-cbor = "0.4"
+cbor4ii = { version = "0.3", features = ["use_alloc"] }

@@ -198,26 +198,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
-name = "byteorder"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fc10e8cc6b2580fda3f36eb6dc5316657f812a3df879a44a66fc9f0fdbc4855"
-
-[[package]]
 name = "bytes"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
 
 [[package]]
-name = "cbor"
-version = "0.4.1"
+name = "cbor4ii"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e56053652b4b5c0ded5ae6183c7cd547ad2dd6bcce149658bef052a4995533bd"
-dependencies = [
- "byteorder",
- "rustc-serialize",
-]
+checksum = "59b4c883b9cc4757b061600d39001d4d0232bece4a3174696cf8f58a14db107d"
 
 [[package]]
 name = "cc"
@@ -301,7 +291,7 @@ dependencies = [
  "ark-ec",
  "ark-serialize",
  "bech32",
- "cbor",
+ "cbor4ii",
  "chacha20",
  "hex",
  "num-traits",
@@ -1013,12 +1003,6 @@ name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
-
-[[package]]
-name = "rustc-serialize"
-version = "0.3.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe834bc780604f4674073badbad26d7219cadfb4a2275802db12cbae17498401"
 
 [[package]]
 name = "rustc_version"
