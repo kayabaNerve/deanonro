@@ -311,7 +311,7 @@ fn brute_force_amount(
 
     let mut amount = G1Projective::zero();
     for amount_iter in 0..=max_iters {
-        if (amount_iter % 10000) == 0 {
+        if (amount_iter % 1000) == 0 {
             dbg!(amount_iter);
         }
         // TODO: Only attempt deceryption for the receiver ring, which can be differentiated by parity
@@ -346,12 +346,31 @@ async fn main() {
 
     let mut tx_ids: Vec<&str> = vec![
         // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
-        "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0", // 2
+        // "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0", // 2
+        /*
         // Random TXs
         "6f627d5aba7f36307bbd009540eea7b7b0f5c82de851d8ff425f96eabfc1c6bf", // 135000
         "65a2e916871ba94e1190e16a2a7d998fc195cccc64fab4052610741240599f94", // 12200
         "342cd00ef163b661a5c68790e59efcb7cd76d41dc72a013c596973af06de03b5", // 3995
         "51271a66bfac64c7eff73e66cc81e3abbd74ffe396145df090275b771e668ba0", // 20000
+        "5fd935b185d889c79f03e4d579048289b3e0cd2ad3fdf6dfa419f1a44a434abe", // [1, 0], no args
+        "9c0a002779c843fab3084055f97b683dbb3c8d3adb818c32874cbaf9f4eadbd2", // 360000
+        "30928ebbb74d035460d02241885b924c0b500bcad43fadfd427cec6bdb318690", // 130000
+        "2a5f484cbd52a2b8ac6a25be1d1583051d418726e8fdae9bb4401de0a9ea732f", // 108000
+        "61aa0c1a6ec9852d4ffe23e9a80b6cc08d244dd01671c79614597f4e7c604669", // 920000
+        "18760571397800b52f6f802130de338ef02a62732cf4102513c07426ea0100c8", // 320000
+        "fd0c94550a322af97b90a31a5e3f54cc92cc3f3c2b8eb258715ce609b63b51cb", // 2000000
+        "224a03c7a897137f4245fe37f2d895a88193a818b0120179b5bb265bcc1db70e", // 499000
+        "b5640c95efe50c0bc9fe22757de209d00d7223a70be0f6f1d55e432c1aa6953e", // 215000
+        "1b5f61aeb1d013478de18396ed21a8ec7cac09d212e4986faa6db99bc8845a13", // 197000
+        "93baf98045eb1d8606a39aa820401d6d2c0a473a1364c62994596fd568af2810", // 130000
+        "fea192dc387e9eaf70ae1c9300b9895d1ba87092dee74de2096f93ad6394baec", // 1, "secretnamebasis"
+        "6f627d5aba7f36307bbd009540eea7b7b0f5c82de851d8ff425f96eabfc1c6bf", // 135000
+        "88a4cbff333a2b4bf761cbd728283565893349bc73a31a6e73fae2496ec41293", // 1400000
+        "fa842de681a03f0e89d883fb5b0768a96eeb37e7974eae59fe6bf76c448d1fcc", // 1, "secretnamebasis"
+        "9ec809d700b42d129e9988883b016acd997f958fb8ae8505f92fb0c00b13ba41", // 227000
+        "29b69c6133e93491019a200a910bed631e160193989b1a091b0ac761ba52b631", // 1300000
+        */
     ];
     for tx_id in tx_ids {
         let Some(tx) = fetch_tx_with_retry(tx_id).await else {
@@ -380,17 +399,6 @@ async fn main() {
             ) {
                 continue;
             }
-            // 0 ..= 0.5 DERO, in atomic units
-            if brute_force_amount(
-                &keys,
-                &commitments,
-                transfer.payload,
-                amount_generator,
-                1,
-                50000,
-            ) {
-                continue;
-            }
             // 0 ..= 400 DERO, in units of .01
             if brute_force_amount(
                 &keys,
@@ -399,6 +407,17 @@ async fn main() {
                 amount_generator,
                 1000,
                 40000,
+            ) {
+                continue;
+            }
+            // 0 ..= 0.5 DERO, in atomic units
+            if brute_force_amount(
+                &keys,
+                &commitments,
+                transfer.payload,
+                amount_generator,
+                1,
+                50000,
             ) {
                 continue;
             }
