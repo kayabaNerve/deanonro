@@ -345,7 +345,7 @@ async fn main() {
     );
 
     let mut tx_ids: Vec<&str> = vec![
-        // This is a TX ID with a known amount (2, which is quite low) found on a GH repo
+        // This is a TX ID with a known amount (2, which is quite low) found on the dero-xmr swap GH repo: https://github.com/secretsystems/dero-xmr-swap
         // "88e4c1731d9d0096bccde4b1766413df7af11e6d41d68284a3b842cd348c96f0", // 2
         /*
         // Random TXs
